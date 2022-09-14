@@ -5,6 +5,12 @@ pub struct Token {
 }
 
 #[derive(Debug)]
+enum NumberContents {
+    Integer(i64),
+    Floating(f64),
+}
+
+#[derive(Debug)]
 pub enum TokenContents {
     Plus,
     Minus,
@@ -14,7 +20,7 @@ pub enum TokenContents {
     LParen,
     RParen,
 
-    Number(i64),
+    Number(NumberContents),
     QuotedString(String),
 
     Name(String),
@@ -48,19 +54,37 @@ pub fn lex(bytes: &[u8]) -> Vec<Token> {
     while index < bytes.len() {
         if bytes[index].is_ascii_digit() {
             let start = index;
-            while index < bytes.len() && bytes[index].is_ascii_digit() {
+            let mut floating = false;
+            while index < bytes.len() && (bytes[index].is_ascii_digit() || bytes[index] == b'.') {
+                if bytes[index] == b'.' {
+                    floating = true;
+                } else if bytes[index] == b'.' && floating {
+                    panic!("Bad floating point number on line {}, found two decimal points", line)
+                }
                 index += 1;
             }
 
-            let num = match String::from_utf8_lossy(&bytes[start..index]).parse() {
-                Ok(n) => n,
-                Err(_) => panic!("Bad number on line {}", line),
-            };
+            if floating {
+                let num = match String::from_utf8_lossy(&bytes[start..index]).parse() {
+                    Ok(n) => n,
+                    Err(_) => panic!("Bad floating point number on line {}", line),
+                };
 
-            tokens.push(Token::new(
-                TokenContents::Number(num),
-                Span::new(start, index - 1),
-            ))
+                tokens.push(Token::new(
+                    TokenContents::Number(NumberContents::Floating(num)),
+                    Span::new(start, index - 1),
+                ))
+            } else {
+                let num = match String::from_utf8_lossy(&bytes[start..index]).parse() {
+                    Ok(n) => n,
+                    Err(_) => panic!("Bad integer on line {}", line),
+                };
+
+                tokens.push(Token::new(
+                    TokenContents::Number(NumberContents::Integer(num)),
+                    Span::new(start, index - 1),
+                ))
+            }
         } else if bytes[index].is_ascii_alphanumeric() {
             let start = index;
             while index < bytes.len() && bytes[index].is_ascii_alphanumeric() {
@@ -109,6 +133,23 @@ pub fn lex(bytes: &[u8]) -> Vec<Token> {
             } else if bytes[index] == b'\n' {
                 line += 1;
                 index += 1;
+            }
+        } else if bytes[index] == b'/' {
+            if index + 1 < bytes.len() && bytes[index + 1] == b'/' {
+                index += 2;
+                while index < bytes.len() && bytes[index] != b'\n' {
+                    index += 1;
+                }
+
+                if index < bytes.len() && bytes[index] == b'\n' {
+                    line += 1;
+                    index += 1;
+                }
+            } else {
+                panic!(
+                    "Unexpected token '{}' on line {}",
+                    bytes[index] as char, line
+                )
             }
         } else {
             panic!(
