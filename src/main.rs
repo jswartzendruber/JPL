@@ -18,7 +18,13 @@ fn main() {
         }
     };
 
-    let tokens = lexer::lex(source.as_bytes());
+    let tokens = match lexer::lex(source.as_bytes()) {
+        Ok(t) => t,
+        Err(e) => {
+            e.print_error();
+            process::exit(1);
+        }
+    };
 
     for token in tokens {
         println!("{:?}", token);

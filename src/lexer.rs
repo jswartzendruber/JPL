@@ -5,7 +5,7 @@ pub struct Token {
 }
 
 #[derive(Debug)]
-enum NumberContents {
+pub enum NumberContents {
     Integer(i64),
     Floating(f64),
 }
@@ -46,7 +46,21 @@ impl Token {
     }
 }
 
-pub fn lex(bytes: &[u8]) -> Vec<Token> {
+pub struct JPLError {
+    message: String,
+}
+
+impl JPLError {
+    fn new(message: String) -> Self {
+        Self { message }
+    }
+
+    pub fn print_error(&self) {
+        println!("Error: {}", self.message);
+    }
+}
+
+pub fn lex(bytes: &[u8]) -> Result<Vec<Token>, JPLError> {
     let mut tokens = vec![];
     let mut index = 0;
     let mut line = 1;
@@ -59,7 +73,10 @@ pub fn lex(bytes: &[u8]) -> Vec<Token> {
                 if bytes[index] == b'.' {
                     floating = true;
                 } else if bytes[index] == b'.' && floating {
-                    panic!("Bad floating point number on line {}, found two decimal points", line)
+                    return Err(JPLError::new(format!(
+                        "Bad floating point number on line {}, found two decimal points",
+                        line
+                    )));
                 }
                 index += 1;
             }
@@ -67,7 +84,12 @@ pub fn lex(bytes: &[u8]) -> Vec<Token> {
             if floating {
                 let num = match String::from_utf8_lossy(&bytes[start..index]).parse() {
                     Ok(n) => n,
-                    Err(_) => panic!("Bad floating point number on line {}", line),
+                    Err(_) => {
+                        return Err(JPLError::new(format!(
+                            "Bad floating point number on line {}",
+                            line
+                        )));
+                    }
                 };
 
                 tokens.push(Token::new(
@@ -77,7 +99,9 @@ pub fn lex(bytes: &[u8]) -> Vec<Token> {
             } else {
                 let num = match String::from_utf8_lossy(&bytes[start..index]).parse() {
                     Ok(n) => n,
-                    Err(_) => panic!("Bad integer on line {}", line),
+                    Err(_) => {
+                        return Err(JPLError::new(format!("Bad integer on line {}", line)));
+                    }
                 };
 
                 tokens.push(Token::new(
@@ -104,7 +128,10 @@ pub fn lex(bytes: &[u8]) -> Vec<Token> {
             }
 
             if bytes[index] != b'"' {
-                panic!("Unterminated string on line {}", line)
+                return Err(JPLError::new(format!(
+                    "Unterminated string on line {}",
+                    line
+                )));
             }
 
             tokens.push(Token::new(
@@ -146,20 +173,20 @@ pub fn lex(bytes: &[u8]) -> Vec<Token> {
                     index += 1;
                 }
             } else {
-                panic!(
+                return Err(JPLError::new(format!(
                     "Unexpected token '{}' on line {}",
                     bytes[index] as char, line
-                )
+                )));
             }
         } else {
-            panic!(
+            return Err(JPLError::new(format!(
                 "unexpected token '{}' on line {}",
                 bytes[index] as char, line
-            )
+            )));
         }
     }
 
     tokens.push(Token::new(TokenContents::Eof, Span::new(index, index)));
 
-    tokens
+    Ok(tokens)
 }
