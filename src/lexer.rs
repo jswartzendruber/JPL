@@ -1,16 +1,18 @@
+use crate::JPLError;
+
 #[derive(Debug)]
 pub struct Token {
-    contents: TokenContents,
+    pub contents: TokenContents,
     span: Span,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum NumberContents {
     Integer(i64),
     Floating(f64),
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum TokenContents {
     Plus,
     Minus,
@@ -43,20 +45,6 @@ impl Span {
 impl Token {
     pub fn new(contents: TokenContents, span: Span) -> Self {
         Self { contents, span }
-    }
-}
-
-pub struct JPLError {
-    message: String,
-}
-
-impl JPLError {
-    fn new(message: String) -> Self {
-        Self { message }
-    }
-
-    pub fn print_error(&self) {
-        println!("Error: {}", self.message);
     }
 }
 

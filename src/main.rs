@@ -1,6 +1,23 @@
 use std::{env, fs, process};
 
+use parser::Parser;
+
 mod lexer;
+mod parser;
+
+pub struct JPLError {
+    message: String,
+}
+
+impl JPLError {
+    fn new(message: String) -> Self {
+        Self { message }
+    }
+
+    pub fn print_error(&self) {
+        println!("Error: {}", self.message);
+    }
+}
 
 fn main() {
     let args: Vec<String> = env::args().skip(1).collect();
@@ -26,7 +43,11 @@ fn main() {
         }
     };
 
-    for token in tokens {
-        println!("{:?}", token);
+    let mut parser = Parser::new(tokens);
+    match parser.parse() {
+        Ok(_) => {
+            println!("parsing successful!")
+        }
+        Err(e) => e.print_error(),
     }
 }
