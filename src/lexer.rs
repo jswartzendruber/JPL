@@ -6,16 +6,18 @@ pub struct Token {
     span: Span,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum NumberContents {
     Integer(i64),
     Floating(f64),
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum TokenContents {
     Plus,
     Minus,
+    Star,
+    Slash,
 
     Equal,
 
@@ -133,6 +135,12 @@ pub fn lex(bytes: &[u8]) -> Result<Vec<Token>, JPLError> {
         } else if bytes[index] == b'+' {
             tokens.push(Token::new(TokenContents::Plus, Span::new(index, index)));
             index += 1;
+        } else if bytes[index] == b'-' {
+            tokens.push(Token::new(TokenContents::Minus, Span::new(index, index)));
+            index += 1;
+        } else if bytes[index] == b'*' {
+            tokens.push(Token::new(TokenContents::Star, Span::new(index, index)));
+            index += 1;
         } else if bytes[index] == b'=' {
             tokens.push(Token::new(TokenContents::Equal, Span::new(index, index)));
             index += 1;
@@ -161,10 +169,8 @@ pub fn lex(bytes: &[u8]) -> Result<Vec<Token>, JPLError> {
                     index += 1;
                 }
             } else {
-                return Err(JPLError::new(format!(
-                    "Unexpected token '{}' on line {}",
-                    bytes[index] as char, line
-                )));
+                tokens.push(Token::new(TokenContents::Slash, Span::new(index, index)));
+                index += 1;
             }
         } else {
             return Err(JPLError::new(format!(

@@ -22,7 +22,7 @@ impl Parser {
     }
 
     fn declaration(&mut self) -> Result<(), JPLError> {
-        match &self.peek().contents {
+        match &self.current().contents {
             TokenContents::Name(n) => {
                 if n.eq_ignore_ascii_case("let") {
                     self.advance();
@@ -38,62 +38,139 @@ impl Parser {
     }
 
     fn var_declaration(&mut self) -> Result<(), JPLError> {
-        match &self.peek().contents {
-            TokenContents::Name(_) => Ok(()),
+        match &self.current().contents {
+            TokenContents::Name(_) => {
+                self.advance();
+                Ok(())
+            }
             _ => Err(JPLError::new(String::from("Expected variable name."))),
         }?;
-        self.advance();
 
-        match &self.peek().contents {
-            TokenContents::Equal => Ok(()),
+        match &self.current().contents {
+            TokenContents::Equal => {
+                self.advance();
+                Ok(())
+            }
             _ => Err(JPLError::new(String::from("Expected equals sign."))),
         }?;
-        self.advance();
 
-        match self.peek().contents {
-            TokenContents::QuotedString(_) => Ok(()),
-            TokenContents::Number(_) => Ok(()),
+        match self.current().contents {
+            TokenContents::QuotedString(_) => {
+                self.advance();
+                Ok(())
+            }
+            TokenContents::Number(_) => self.expression(),
             _ => Err(JPLError::new(String::from("Expected literal value."))),
         }?;
-        self.advance();
 
         Ok(())
     }
 
     fn statement(&mut self) -> Result<(), JPLError> {
-        match &self.peek().contents {
+        match &self.current().contents {
             TokenContents::Name(n) => {
                 if n.eq_ignore_ascii_case("print") {
                     self.advance();
 
-                    match &self.peek().contents {
-                        TokenContents::LParen => Ok(()),
+                    match &self.current().contents {
+                        TokenContents::LParen => {
+                            self.advance();
+                            Ok(())
+                        }
                         _ => Err(JPLError::new(String::from("Expected left parenthesis."))),
                     }?;
-                    self.advance();
 
-                    match &self.peek().contents {
-                        TokenContents::Name(_) => Ok(()),
-                        _ => Err(JPLError::new(String::from("Expected variable."))),
+                    match &self.current().contents {
+                        TokenContents::Name(_) | TokenContents::Number(_) => {
+                            self.advance();
+                            Ok(())
+                        }
+                        _ => Err(JPLError::new(String::from("Expected variable or value."))),
                     }?;
-                    self.advance();
 
-                    match &self.peek().contents {
-                        TokenContents::RParen => Ok(()),
+                    match &self.current().contents {
+                        TokenContents::RParen => {
+                            self.advance();
+                            Ok(())
+                        }
                         _ => Err(JPLError::new(String::from("Expected right parenthesis."))),
                     }?;
-                    self.advance();
                 }
                 return Ok(());
             }
-            TokenContents::QuotedString(_) => Ok(()),
-            TokenContents::Number(_) => Ok(()),
+            TokenContents::Number(_) => self.expression(),
             _ => Err(JPLError::new(String::from("Expected variable or literal."))),
         }
     }
 
-    fn peek(&self) -> &Token {
+    fn expression(&mut self) -> Result<(), JPLError> {
+        self.term()?;
+
+        match self.current().contents {
+            TokenContents::Plus => {
+                self.advance();
+                self.expression()?;
+                Ok(())
+            }
+            TokenContents::Minus => {
+                self.advance();
+                self.expression()?;
+                Ok(())
+            }
+            _ => Ok(()),
+        }
+    }
+
+    fn term(&mut self) -> Result<(), JPLError> {
+        self.factor()?;
+
+        match self.current().contents {
+            TokenContents::Star => {
+                self.advance();
+                self.term()?;
+                Ok(())
+            }
+            TokenContents::Slash => {
+                self.advance();
+                self.term()?;
+                Ok(())
+            }
+            _ => Ok(()),
+        }
+    }
+
+    fn factor(&mut self) -> Result<(), JPLError> {
+        match &self.current().contents {
+            TokenContents::Number(_) => {
+                self.advance();
+                Ok(())
+            }
+            TokenContents::LParen => {
+                self.advance();
+                self.expression()?;
+                match self.current().contents {
+                    TokenContents::RParen => {
+                        self.advance();
+                        Ok(())
+                    }
+                    _ => Err(JPLError::new(String::from("Expected closing parenthesis."))),
+                }
+            }
+            _ => Err(JPLError::new(String::from(
+                "Expected parenthesis or number.",
+            ))),
+        }
+    }
+
+    fn current(&self) -> &Token {
         &self.tokens[self.idx]
+    }
+
+    fn peek(&self) -> &Token {
+        match self.current().contents {
+            TokenContents::Eof => self.current(),
+            _ => &self.tokens[self.idx + 1],
+        }
     }
 
     fn advance(&mut self) -> &Token {
@@ -108,7 +185,7 @@ impl Parser {
     }
 
     fn is_at_end(&self) -> bool {
-        match self.peek().contents {
+        match self.current().contents {
             TokenContents::Eof => true,
             _ => false,
         }
