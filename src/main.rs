@@ -1,8 +1,11 @@
 use std::{env, fs, process};
 
 use lexer::NumberContents;
-use parser::{ParsedExpr, ParsedStatement, Parser};
+use parser::{ParsedExpr, Parser};
 
+use crate::codegen::compile;
+
+mod codegen;
 mod lexer;
 mod parser;
 
@@ -49,17 +52,19 @@ fn main() {
         Ok(_) => {
             println!("parsing successful!");
 
-            for statement in parser.statements {
-                println!("{:?}", statement);
-                match statement {
-                    ParsedStatement::Expression(e) | ParsedStatement::VarDecl(_, e) => {
-                        match evaluate(e) {
-                            NumberContents::Integer(n) => println!("{}", n),
-                            NumberContents::Floating(n) => println!("{}", n),
-                        }
-                    }
-                }
-            }
+            compile(parser.statements);
+
+            // for statement in &parser.statements {
+            //     println!("{:?}", statement);
+            //     match statement {
+            //         ParsedStatement::Expression(e) | ParsedStatement::VarDecl(_, e) => {
+            //             match evaluate(e) {
+            //                 NumberContents::Integer(n) => println!("{}", n),
+            //                 NumberContents::Floating(n) => println!("{}", n),
+            //             }
+            //         }
+            //     }
+            // }
         }
         Err(e) => e.print_error(),
     }
