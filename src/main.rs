@@ -1,6 +1,7 @@
 use std::{env, fs, process};
 
-use parser::Parser;
+use lexer::NumberContents;
+use parser::{ParsedExpr, ParsedStatement, Parser};
 
 mod lexer;
 mod parser;
@@ -50,8 +51,30 @@ fn main() {
 
             for statement in parser.statements {
                 println!("{:?}", statement);
+                match statement {
+                    ParsedStatement::Expression(e) | ParsedStatement::VarDecl(_, e) => {
+                        match evaluate(e) {
+                            NumberContents::Integer(n) => println!("{}", n),
+                            NumberContents::Floating(n) => println!("{}", n),
+                        }
+                    }
+                }
             }
         }
         Err(e) => e.print_error(),
+    }
+}
+
+fn evaluate(expr: ParsedExpr) -> NumberContents {
+    match expr {
+        ParsedExpr::NumericConstant(n) => n,
+        ParsedExpr::BinaryOp(n1, op, n2) => match op {
+            parser::BinaryOperator::Add => evaluate(*n1) + evaluate(*n2),
+            parser::BinaryOperator::Subtract => evaluate(*n1) - evaluate(*n2),
+            parser::BinaryOperator::Multiply => evaluate(*n1) * evaluate(*n2),
+            parser::BinaryOperator::Divide => evaluate(*n1) / evaluate(*n2),
+        },
+        ParsedExpr::QuotedString(_) => todo!(),
+        ParsedExpr::Var(_) => todo!(),
     }
 }

@@ -1,3 +1,5 @@
+use std::ops::{Add, Div, Mul, Sub};
+
 use crate::JPLError;
 
 #[derive(Debug)]
@@ -10,6 +12,74 @@ pub struct Token {
 pub enum NumberContents {
     Integer(i64),
     Floating(f64),
+}
+
+impl Add for NumberContents {
+    type Output = NumberContents;
+
+    fn add(self, rhs: Self) -> Self::Output {
+        match self {
+            NumberContents::Integer(n1) => match rhs {
+                NumberContents::Integer(n2) => NumberContents::Integer(n1 + n2),
+                NumberContents::Floating(n2) => NumberContents::Floating(n1 as f64 + n2),
+            },
+            NumberContents::Floating(n1) => match rhs {
+                NumberContents::Floating(n2) => NumberContents::Floating(n1 + n2),
+                NumberContents::Integer(n2) => NumberContents::Floating(n1 + n2 as f64),
+            },
+        }
+    }
+}
+
+impl Sub for NumberContents {
+    type Output = NumberContents;
+
+    fn sub(self, rhs: Self) -> Self::Output {
+        match self {
+            NumberContents::Integer(n1) => match rhs {
+                NumberContents::Integer(n2) => NumberContents::Integer(n1 - n2),
+                NumberContents::Floating(n2) => NumberContents::Floating(n1 as f64 - n2),
+            },
+            NumberContents::Floating(n1) => match rhs {
+                NumberContents::Floating(n2) => NumberContents::Floating(n1 - n2),
+                NumberContents::Integer(n2) => NumberContents::Floating(n1 - n2 as f64),
+            },
+        }
+    }
+}
+
+impl Mul for NumberContents {
+    type Output = NumberContents;
+
+    fn mul(self, rhs: Self) -> Self::Output {
+        match self {
+            NumberContents::Integer(n1) => match rhs {
+                NumberContents::Integer(n2) => NumberContents::Integer(n1 * n2),
+                NumberContents::Floating(n2) => NumberContents::Floating(n1 as f64 * n2),
+            },
+            NumberContents::Floating(n1) => match rhs {
+                NumberContents::Floating(n2) => NumberContents::Floating(n1 * n2),
+                NumberContents::Integer(n2) => NumberContents::Floating(n1 * n2 as f64),
+            },
+        }
+    }
+}
+
+impl Div for NumberContents {
+    type Output = NumberContents;
+
+    fn div(self, rhs: Self) -> Self::Output {
+        match self {
+            NumberContents::Integer(n1) => match rhs {
+                NumberContents::Integer(n2) => NumberContents::Integer(n1 / n2),
+                NumberContents::Floating(n2) => NumberContents::Floating(n1 as f64 / n2),
+            },
+            NumberContents::Floating(n1) => match rhs {
+                NumberContents::Floating(n2) => NumberContents::Floating(n1 / n2),
+                NumberContents::Integer(n2) => NumberContents::Floating(n1 / n2 as f64),
+            },
+        }
+    }
 }
 
 #[derive(Debug, PartialEq, Clone)]

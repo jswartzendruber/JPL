@@ -200,7 +200,6 @@ impl Parser {
     }
 
     fn factor(&mut self) -> Result<ParsedExpr, JPLError> {
-        println!("staring at: {:?}", self.current());
         match &self.current().contents {
             TokenContents::Number(n) => {
                 let number = n.clone();
@@ -241,7 +240,6 @@ impl Parser {
     }
 
     fn advance(&mut self) -> &Token {
-        println!("ate {:?}", self.tokens[self.idx]);
         if !self.is_at_end() {
             self.idx += 1;
         }
