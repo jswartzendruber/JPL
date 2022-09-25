@@ -46,7 +46,11 @@ fn main() {
     let mut parser = Parser::new(tokens);
     match parser.parse() {
         Ok(_) => {
-            println!("parsing successful!")
+            println!("parsing successful!");
+
+            for statement in parser.statements {
+                println!("{:?}", statement);
+            }
         }
         Err(e) => e.print_error(),
     }

@@ -1,16 +1,49 @@
 use crate::{
-    lexer::{Token, TokenContents},
+    lexer::{NumberContents, Token, TokenContents},
     JPLError,
 };
 
+#[derive(Debug)]
 pub struct Parser {
+    pub statements: Vec<ParsedStatement>,
     tokens: Vec<Token>,
     idx: usize,
 }
 
+#[derive(Debug)]
+pub enum ParsedStatement {
+    Expression(ParsedExpr),
+    VarDecl(ParsedVarDecl, ParsedExpr),
+}
+
+#[derive(Debug)]
+pub struct ParsedVarDecl {
+    name: String,
+}
+
+#[derive(Debug)]
+pub enum ParsedExpr {
+    NumericConstant(NumberContents),
+    BinaryOp(Box<ParsedExpr>, BinaryOperator, Box<ParsedExpr>),
+    QuotedString(String),
+    Var(String),
+}
+
+#[derive(Debug)]
+pub enum BinaryOperator {
+    Add,
+    Subtract,
+    Multiply,
+    Divide,
+}
+
 impl Parser {
     pub fn new(tokens: Vec<Token>) -> Self {
-        Self { tokens, idx: 0 }
+        Self {
+            statements: vec![],
+            tokens,
+            idx: 0,
+        }
     }
 
     pub fn parse(&mut self) -> Result<(), JPLError> {
@@ -38,10 +71,11 @@ impl Parser {
     }
 
     fn var_declaration(&mut self) -> Result<(), JPLError> {
-        match &self.current().contents {
-            TokenContents::Name(_) => {
+        let decl = match &self.current().contents {
+            TokenContents::Name(n) => {
+                let name = n.clone();
                 self.advance();
-                Ok(())
+                Ok(ParsedVarDecl { name })
             }
             _ => Err(JPLError::new(String::from("Expected variable name."))),
         }?;
@@ -54,14 +88,17 @@ impl Parser {
             _ => Err(JPLError::new(String::from("Expected equals sign."))),
         }?;
 
-        match self.current().contents {
-            TokenContents::QuotedString(_) => {
+        let expr = match &self.current().contents {
+            TokenContents::QuotedString(s) => {
+                let quoted_string = s.clone();
                 self.advance();
-                Ok(())
+                Ok(ParsedExpr::QuotedString(quoted_string))
             }
-            TokenContents::Number(_) => self.expression(),
+            TokenContents::Number(_) | TokenContents::LParen => Ok(self.expression()?),
             _ => Err(JPLError::new(String::from("Expected literal value."))),
         }?;
+
+        self.statements.push(ParsedStatement::VarDecl(decl, expr));
 
         Ok(())
     }
@@ -98,60 +135,90 @@ impl Parser {
                 }
                 return Ok(());
             }
-            TokenContents::Number(_) => self.expression(),
+            TokenContents::Number(_) => {
+                self.expression()?;
+                Ok(())
+            }
             _ => Err(JPLError::new(String::from("Expected variable or literal."))),
         }
     }
 
-    fn expression(&mut self) -> Result<(), JPLError> {
-        self.term()?;
+    fn expression(&mut self) -> Result<ParsedExpr, JPLError> {
+        let lhs = self.term()?;
 
         match self.current().contents {
             TokenContents::Plus => {
                 self.advance();
-                self.expression()?;
-                Ok(())
+                let rhs = self.expression()?;
+
+                Ok(ParsedExpr::BinaryOp(
+                    Box::new(lhs),
+                    BinaryOperator::Add,
+                    Box::new(rhs),
+                ))
             }
             TokenContents::Minus => {
                 self.advance();
-                self.expression()?;
-                Ok(())
+                let rhs = self.expression()?;
+
+                Ok(ParsedExpr::BinaryOp(
+                    Box::new(lhs),
+                    BinaryOperator::Subtract,
+                    Box::new(rhs),
+                ))
             }
-            _ => Ok(()),
+            _ => Ok(lhs),
         }
     }
 
-    fn term(&mut self) -> Result<(), JPLError> {
-        self.factor()?;
+    fn term(&mut self) -> Result<ParsedExpr, JPLError> {
+        let lhs = self.factor()?;
 
         match self.current().contents {
             TokenContents::Star => {
                 self.advance();
-                self.term()?;
-                Ok(())
+                let rhs = self.term()?;
+
+                Ok(ParsedExpr::BinaryOp(
+                    Box::new(lhs),
+                    BinaryOperator::Multiply,
+                    Box::new(rhs),
+                ))
             }
             TokenContents::Slash => {
                 self.advance();
-                self.term()?;
-                Ok(())
+                let rhs = self.term()?;
+
+                Ok(ParsedExpr::BinaryOp(
+                    Box::new(lhs),
+                    BinaryOperator::Divide,
+                    Box::new(rhs),
+                ))
             }
-            _ => Ok(()),
+            _ => Ok(lhs),
         }
     }
 
-    fn factor(&mut self) -> Result<(), JPLError> {
+    fn factor(&mut self) -> Result<ParsedExpr, JPLError> {
+        println!("staring at: {:?}", self.current());
         match &self.current().contents {
-            TokenContents::Number(_) => {
+            TokenContents::Number(n) => {
+                let number = n.clone();
                 self.advance();
-                Ok(())
+                Ok(ParsedExpr::NumericConstant(number))
+            }
+            TokenContents::Name(n) => {
+                let name = n.clone();
+                self.advance();
+                Ok(ParsedExpr::Var(name))
             }
             TokenContents::LParen => {
                 self.advance();
-                self.expression()?;
+                let expr = self.expression()?;
                 match self.current().contents {
                     TokenContents::RParen => {
                         self.advance();
-                        Ok(())
+                        Ok(expr)
                     }
                     _ => Err(JPLError::new(String::from("Expected closing parenthesis."))),
                 }
@@ -174,6 +241,7 @@ impl Parser {
     }
 
     fn advance(&mut self) -> &Token {
+        println!("ate {:?}", self.tokens[self.idx]);
         if !self.is_at_end() {
             self.idx += 1;
         }
