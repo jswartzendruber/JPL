@@ -1,27 +1,55 @@
 use std::{fs::File, io::Write, process::Command};
 
-use crate::parser::ParsedStatement;
+use crate::parser::{ParsedExpr, ParsedStatement};
 
 pub fn compile(statements: Vec<ParsedStatement>) {
-    let output = String::from(
-        "; Program compiled using JPL compiler
+    let mut output = String::from("; Program compiled using JPL compiler\n\n");
+    output.push_str("SECTION .data\n");
 
-SECTION .data
-    message db 'Hello JPL!', 0Ah
+    for statement in &statements {
+        match statement {
+            ParsedStatement::Expression(_) => {}
+            ParsedStatement::VarDecl(var_name, expr) => match expr {
+                ParsedExpr::NumericConstant(_) => todo!(),
+                ParsedExpr::BinaryOp(_, _, _) => todo!(),
+                ParsedExpr::QuotedString(str) => {
+                    output.push_str(&format!("\t{} db '{}', 0Ah\n", var_name.name, str))
+                }
+                ParsedExpr::Var(_) => todo!(),
+            },
+            ParsedStatement::FunctionCall(_, _) => todo!(),
+        }
+    }
+    output.push_str("\n");
+    output.push_str("SECTION .text\n");
+    output.push_str("global _start\n\n");
+    output.push_str("_start:\n");
 
-SECTION .text
-global _start
-
-_start:
-    mov edx, 11
-    mov ecx, message
-    mov ebx, 1
-    mov eax, 4
-    int 80h
-    mov ebx, 0
-    mov eax, 1
-    int 80h",
-    );
+    for statement in &statements {
+        match statement {
+            ParsedStatement::Expression(_) => {}
+            ParsedStatement::VarDecl(_, _) => {},
+            ParsedStatement::FunctionCall(name, exprs) => {
+                for expr in exprs {
+                    match expr {
+                        ParsedExpr::NumericConstant(_) => todo!(),
+                        ParsedExpr::BinaryOp(_, _, _) => todo!(),
+                        ParsedExpr::QuotedString(_) => todo!(),
+                        ParsedExpr::Var(var_name) => {
+                            output.push_str(&format!("\tmov edx, {}\n", var_name.len() + 1));
+                            output.push_str(&format!("\tmov ecx, {}\n", var_name));
+                        }
+                    }
+                }
+            }
+        }
+    }
+    output.push_str("\tmov ebx, 1\n");
+    output.push_str("\tmov eax, 4\n");
+    output.push_str("\tint 80h\n");
+    output.push_str("\tmov ebx, 0\n");
+    output.push_str("\tmov eax, 1\n");
+    output.push_str("\tint 80h\n");
 
     let mut file = File::create("a.asm").expect("Failed to create output file.");
     file.write_all(output.as_bytes())

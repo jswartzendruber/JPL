@@ -14,11 +14,12 @@ pub struct Parser {
 pub enum ParsedStatement {
     Expression(ParsedExpr),
     VarDecl(ParsedVarDecl, ParsedExpr),
+    FunctionCall(String, Vec<ParsedExpr>),
 }
 
 #[derive(Debug)]
 pub struct ParsedVarDecl {
-    name: String,
+    pub name: String,
 }
 
 #[derive(Debug)]
@@ -60,6 +61,8 @@ impl Parser {
                 if n.eq_ignore_ascii_case("let") {
                     self.advance();
                     self.var_declaration()?;
+                } else if &self.peek().contents == &TokenContents::LParen {
+                    self.function_call()?;
                 }
             }
             _ => {}
@@ -67,6 +70,54 @@ impl Parser {
 
         self.statement()?;
 
+        Ok(())
+    }
+
+    fn function_call(&mut self) -> Result<(), JPLError> {
+        let name = match &self.current().contents {
+            TokenContents::Name(n) => {
+                let name = n.clone();
+                self.advance();
+                Ok(name)
+            }
+            _ => Err(JPLError::new(String::from("Expected function name."))),
+        }?;
+
+        match &self.current().contents {
+            TokenContents::LParen => {
+                self.advance();
+                Ok(())
+            }
+            _ => Err(JPLError::new(String::from("Expected left parenthesis."))),
+        }?;
+
+        // TODO: handle more than one argument
+        let mut args = vec![];
+        match &self.current().contents {
+            TokenContents::QuotedString(s) => {
+                args.push(ParsedExpr::QuotedString(s.to_string()));
+                Ok(())
+            }
+            TokenContents::Name(n) => {
+                args.push(ParsedExpr::Var(n.to_string()));
+                Ok(())
+            }
+            _ => match self.expression() {
+                Ok(_) => Ok(()),
+                Err(_) => Err(JPLError::new(String::from("Expected expression."))),
+            },
+        }?;
+
+        match &self.current().contents {
+            TokenContents::RParen => {
+                self.advance();
+                Ok(())
+            }
+            _ => Err(JPLError::new(String::from("Expected right parenthesis."))),
+        }?;
+
+        self.statements
+            .push(ParsedStatement::FunctionCall(name.to_string(), args));
         Ok(())
     }
 
