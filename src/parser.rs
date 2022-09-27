@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use crate::{
     lexer::{NumberContents, Token, TokenContents},
     JPLError,
@@ -28,6 +30,49 @@ pub enum ParsedExpr {
     BinaryOp(Box<ParsedExpr>, BinaryOperator, Box<ParsedExpr>),
     QuotedString(String),
     Var(String),
+}
+
+impl ParsedExpr {
+    pub fn evaluate_expr_to_string(
+        expr: &ParsedExpr,
+        var_table: &HashMap<String, ParsedExpr>,
+    ) -> String {
+        match expr {
+            ParsedExpr::BinaryOp(_, _, _) | ParsedExpr::NumericConstant(_) => {
+                match Self::evaluate_expr(expr, var_table) {
+                    NumberContents::Integer(i) => i.to_string(),
+                    NumberContents::Floating(f) => f.to_string(),
+                }
+            }
+            ParsedExpr::QuotedString(s) => s.to_string(),
+            ParsedExpr::Var(v) => v.to_string(),
+        }
+    }
+
+    fn evaluate_expr(expr: &ParsedExpr, var_table: &HashMap<String, ParsedExpr>) -> NumberContents {
+        match expr {
+            ParsedExpr::NumericConstant(n) => n.clone(),
+            ParsedExpr::BinaryOp(n1, op, n2) => match op {
+                BinaryOperator::Add => {
+                    Self::evaluate_expr(n1, var_table) + Self::evaluate_expr(n2, var_table)
+                }
+                BinaryOperator::Subtract => {
+                    Self::evaluate_expr(n1, var_table) - Self::evaluate_expr(n2, var_table)
+                }
+                BinaryOperator::Multiply => {
+                    Self::evaluate_expr(n1, var_table) * Self::evaluate_expr(n2, var_table)
+                }
+                BinaryOperator::Divide => {
+                    Self::evaluate_expr(n1, var_table) / Self::evaluate_expr(n2, var_table)
+                }
+            },
+            ParsedExpr::QuotedString(_) => todo!(),
+            ParsedExpr::Var(var_name) => Self::evaluate_expr(
+                var_table.get(var_name).expect("Could not find variable"),
+                var_table,
+            ),
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -94,11 +139,6 @@ impl Parser {
         match &self.current().contents {
             TokenContents::QuotedString(s) => {
                 args.push(ParsedExpr::QuotedString(s.to_string()));
-                self.advance();
-                Ok(())
-            }
-            TokenContents::Name(n) => {
-                args.push(ParsedExpr::Var(n.to_string()));
                 self.advance();
                 Ok(())
             }

@@ -55,17 +55,3 @@ fn main() {
         Err(e) => e.print_error(),
     }
 }
-
-fn evaluate(expr: ParsedExpr) -> NumberContents {
-    match expr {
-        ParsedExpr::NumericConstant(n) => n,
-        ParsedExpr::BinaryOp(n1, op, n2) => match op {
-            parser::BinaryOperator::Add => evaluate(*n1) + evaluate(*n2),
-            parser::BinaryOperator::Subtract => evaluate(*n1) - evaluate(*n2),
-            parser::BinaryOperator::Multiply => evaluate(*n1) * evaluate(*n2),
-            parser::BinaryOperator::Divide => evaluate(*n1) / evaluate(*n2),
-        },
-        ParsedExpr::QuotedString(_) => todo!(),
-        ParsedExpr::Var(_) => todo!(),
-    }
-}
