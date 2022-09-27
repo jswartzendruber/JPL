@@ -22,7 +22,7 @@ pub struct ParsedVarDecl {
     pub name: String,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum ParsedExpr {
     NumericConstant(NumberContents),
     BinaryOp(Box<ParsedExpr>, BinaryOperator, Box<ParsedExpr>),
@@ -30,7 +30,7 @@ pub enum ParsedExpr {
     Var(String),
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum BinaryOperator {
     Add,
     Subtract,
@@ -61,8 +61,6 @@ impl Parser {
                 if n.eq_ignore_ascii_case("let") {
                     self.advance();
                     self.var_declaration()?;
-                } else if &self.peek().contents == &TokenContents::LParen {
-                    self.function_call()?;
                 }
             }
             _ => {}
@@ -96,14 +94,19 @@ impl Parser {
         match &self.current().contents {
             TokenContents::QuotedString(s) => {
                 args.push(ParsedExpr::QuotedString(s.to_string()));
+                self.advance();
                 Ok(())
             }
             TokenContents::Name(n) => {
                 args.push(ParsedExpr::Var(n.to_string()));
+                self.advance();
                 Ok(())
             }
             _ => match self.expression() {
-                Ok(_) => Ok(()),
+                Ok(expr) => {
+                    args.push(expr);
+                    Ok(())
+                }
                 Err(_) => Err(JPLError::new(String::from("Expected expression."))),
             },
         }?;
@@ -156,35 +159,12 @@ impl Parser {
 
     fn statement(&mut self) -> Result<(), JPLError> {
         match &self.current().contents {
-            TokenContents::Name(n) => {
-                if n.eq_ignore_ascii_case("print") {
-                    self.advance();
-
-                    match &self.current().contents {
-                        TokenContents::LParen => {
-                            self.advance();
-                            Ok(())
-                        }
-                        _ => Err(JPLError::new(String::from("Expected left parenthesis."))),
-                    }?;
-
-                    match &self.current().contents {
-                        TokenContents::Name(_) | TokenContents::Number(_) => {
-                            self.advance();
-                            Ok(())
-                        }
-                        _ => Err(JPLError::new(String::from("Expected variable or value."))),
-                    }?;
-
-                    match &self.current().contents {
-                        TokenContents::RParen => {
-                            self.advance();
-                            Ok(())
-                        }
-                        _ => Err(JPLError::new(String::from("Expected right parenthesis."))),
-                    }?;
+            TokenContents::Name(_) => {
+                if &self.peek().contents == &TokenContents::LParen {
+                    self.function_call()
+                } else {
+                    Ok(())
                 }
-                return Ok(());
             }
             TokenContents::Number(_) => {
                 self.expression()?;

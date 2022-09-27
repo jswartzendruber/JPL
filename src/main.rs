@@ -50,21 +50,7 @@ fn main() {
     let mut parser = Parser::new(tokens);
     match parser.parse() {
         Ok(_) => {
-            println!("parsing successful!");
-
             compile(parser.statements);
-
-            // for statement in &parser.statements {
-            //     println!("{:?}", statement);
-            //     match statement {
-            //         ParsedStatement::Expression(e) | ParsedStatement::VarDecl(_, e) => {
-            //             match evaluate(e) {
-            //                 NumberContents::Integer(n) => println!("{}", n),
-            //                 NumberContents::Floating(n) => println!("{}", n),
-            //             }
-            //         }
-            //     }
-            // }
         }
         Err(e) => e.print_error(),
     }

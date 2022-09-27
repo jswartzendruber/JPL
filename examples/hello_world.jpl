@@ -1,3 +1,7 @@
-let a="hello world :)" // helpful comment
-let b="test 2"
+let a="WELCOME TO JPL" // helpful comment
+let b="TESTing"
+let b = (987 - 17) / 98
 print(a)
+print(b)
+print(8/4)
+print(66-60)
