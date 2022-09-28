@@ -11,12 +11,17 @@ struct Emitter {
 
 impl Emitter {
     fn new() -> Self {
-        Self {
+        let mut emitter = Self {
             output_data: String::from("SECTION .data\n"),
-            output_text: String::from("SECTION .text\n\tglobal _start\n_start:\n"),
+            output_text: String::from("SECTION .text\n"),
             var_table: HashMap::new(),
             temporary_var_number: 0,
-        }
+        };
+
+        emitter.emit_textln("global _start");
+        emitter.emit_textln("_start:");
+
+        emitter
     }
 
     fn emit_dataln(&mut self, asm: &str) {
@@ -132,7 +137,7 @@ pub fn compile(statements: Vec<ParsedStatement>) {
     emitter.emit_textln("mov eax, 1");
     emitter.emit_textln("int 0x80");
 
-    write_asm_file(emitter);
+    // write_asm_file(emitter);
     compile_asm_file();
     link_source();
     run_source();
