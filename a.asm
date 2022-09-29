@@ -11,22 +11,22 @@ _start:
 	mov rdx, 13
 	syscall
 
+	mov rdi, '3'
+	call print_char
+
+	mov rdi, 10 ; newline
+	call print_char
+
+	mov rax, 60 ; sys_exit
+	xor rdi, rdi ; return code
+	syscall
+
+print_char:
+	push rdi
+	mov rsi, rsp ; char*
+	mov rdx, 1 ; len
 	mov rax, 1 ; sys_write
 	mov rdi, 1 ; stdout
-	push '3' ; data
-	mov rsi, rsp ; data addr
-	mov rdx, 1 ; data_len
 	syscall
-	pop rax
-
-	mov rax, 1 ; sys_write
-	mov rdi, 1 ; stdout
-	push 10 ; data
-	mov rsi, rsp ; data addr
-	mov rdx, 1 ; data_len
-	syscall
-	pop rax
-
-	mov rax, 60
-	xor rdi, rdi
-	syscall
+	pop rdi
+	ret
