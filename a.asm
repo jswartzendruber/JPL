@@ -5,11 +5,9 @@
 	global _start
 
 _start:
-	mov rax, 1
-	mov rdi, 1
 	mov rsi, message
 	mov rdx, 13
-	syscall
+	call print_string
 
 	mov rdi, '3'
 	call print_char
@@ -21,6 +19,7 @@ _start:
 	xor rdi, rdi ; return code
 	syscall
 
+; rdi - char c
 print_char:
 	push rdi
 	mov rsi, rsp ; char*
@@ -29,4 +28,12 @@ print_char:
 	mov rdi, 1 ; stdout
 	syscall
 	pop rdi
+	ret
+
+; rsi - char* message
+; rdx - int length
+print_string:
+	mov rax, 1 ; sys_write
+	mov rdi, 1 ; stdout
+	syscall
 	ret
