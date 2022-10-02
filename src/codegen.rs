@@ -1,6 +1,9 @@
 use std::{collections::HashMap, fs::File, io::Write, process::Command};
 
-use crate::parser::{ParsedExpr, ParsedStatement, ParsedVarDecl};
+use crate::{
+    lexer::NumberContents,
+    parser::{ParsedExpr, ParsedStatement, ParsedVarDecl},
+};
 
 struct Emitter {
     output_data: String,
@@ -18,6 +21,9 @@ impl Emitter {
             temporary_var_number: 0,
         };
 
+        emitter.emit_textln("extern print_int");
+        emitter.emit_textln("extern print_char");
+        emitter.emit_textln("extern print_string");
         emitter.emit_textln("global _start");
         emitter.emit_textln("_start:");
 
@@ -34,7 +40,12 @@ impl Emitter {
 
     fn emit_var_declaration(&mut self, var_name: ParsedVarDecl, expr: ParsedExpr) {
         match expr {
-            ParsedExpr::NumericConstant(_) => todo!(),
+            ParsedExpr::NumericConstant(ref contents) => match contents {
+                NumberContents::Integer(i) => {
+                    self.emit_dataln(&format!("{} dd {}", var_name.name, i))
+                }
+                NumberContents::Floating(_) => todo!(),
+            },
             ParsedExpr::BinaryOp(_, _, _) => {
                 let string_val = ParsedExpr::evaluate_expr_to_string(&expr, &self.var_table);
                 self.emit_dataln(&format!("{} db '{}', 0Ah", var_name.name, string_val));
@@ -49,67 +60,45 @@ impl Emitter {
 
     fn emit_print_expr(&mut self, expr: ParsedExpr) {
         match expr {
-            ParsedExpr::NumericConstant(_) | ParsedExpr::BinaryOp(_, _, _) => {
-                let string_val = ParsedExpr::evaluate_expr_to_string(&expr, &self.var_table);
-                self.emit_dataln(&format!(
-                    "temp{} db '{}', 0Ah",
-                    self.temporary_var_number, string_val
-                ));
-
-                self.emit_textln(&format!("mov edx, {}", string_val.len() + 1));
-                self.emit_textln(&format!("mov ecx, temp{}", self.temporary_var_number));
-                self.temporary_var_number += 1;
-
-                // print
-                self.emit_textln("mov ebx, 1");
-                self.emit_textln("mov eax, 4");
-                self.emit_textln("int 0x80");
+            ParsedExpr::NumericConstant(contents) => match contents {
+                NumberContents::Integer(i) => self.emit_i32_print(i),
+                NumberContents::Floating(_) => todo!(),
+            },
+            ParsedExpr::BinaryOp(_, _, _) => {
+                match ParsedExpr::evaluate_expr(&expr, &self.var_table) {
+                    NumberContents::Integer(i) => self.emit_i32_print(i),
+                    NumberContents::Floating(_) => todo!(),
+                }
             }
             ParsedExpr::QuotedString(str) => {
-                self.emit_dataln(&format!(
-                    "temp{} db '{}', 0Ah",
-                    self.temporary_var_number, str
-                ));
+                self.emit_dataln(&format!("temp{} db '{}'", self.temporary_var_number, str));
 
-                self.emit_textln(&format!("mov edx, {}", str.len() + 1));
-                self.emit_textln(&format!("mov ecx, temp{}", self.temporary_var_number));
+                self.emit_textln(&format!("mov rdx, {}", str.len() + 1));
+                self.emit_textln(&format!("mov rsi, temp{}", self.temporary_var_number));
                 self.temporary_var_number += 1;
 
-                // print
-                self.emit_textln("mov ebx, 1");
-                self.emit_textln("mov eax, 4");
-                self.emit_textln("int 0x80");
+                self.emit_textln("call print_string");
+                self.emit_textln("mov rdi, 10"); // newline
+                self.emit_textln("call print_char");
             }
             ParsedExpr::Var(var_name) => {
                 if let Some(var_value) = self.var_table.get(&var_name) {
                     match var_value {
                         ParsedExpr::NumericConstant(_) => todo!(),
-                        ParsedExpr::BinaryOp(_, _, _) => {
-                            let string_val =
-                                ParsedExpr::evaluate_expr_to_string(&var_value, &self.var_table);
-
-                            self.emit_textln(&format!("mov edx, {}", string_val.len() + 1));
-                            self.emit_textln(&format!("mov ecx, {}", var_name));
-
-                            // print
-                            self.emit_textln("mov ebx, 1");
-                            self.emit_textln("mov eax, 4");
-                            self.emit_textln("int 0x80");
-                        }
-                        ParsedExpr::QuotedString(str) => {
-                            self.emit_textln(&format!("mov edx, {}", str.len() + 1));
-                            self.emit_textln(&format!("mov ecx, {}", var_name));
-
-                            // print
-                            self.emit_textln("mov ebx, 1");
-                            self.emit_textln("mov eax, 4");
-                            self.emit_textln("int 0x80");
-                        }
+                        ParsedExpr::BinaryOp(_, _, _) => todo!(),
+                        ParsedExpr::QuotedString(_) => todo!(),
                         ParsedExpr::Var(_) => todo!(),
                     }
                 }
             }
         }
+    }
+
+    fn emit_i32_print(&mut self, i: i64) {
+        self.emit_textln(&format!("mov rdi, {}", i));
+        self.emit_textln("call print_int");
+        self.emit_textln("mov rdi, 10");
+        self.emit_textln("call print_char");
     }
 }
 
@@ -132,12 +121,11 @@ pub fn compile(statements: Vec<ParsedStatement>) {
         }
     }
 
-    // return 0
-    emitter.emit_textln("mov ebx, 0");
-    emitter.emit_textln("mov eax, 1");
-    emitter.emit_textln("int 0x80");
+    emitter.emit_textln("mov rax, 60"); // sys_exit
+    emitter.emit_textln("mov rdi, 0"); // return code
+    emitter.emit_textln("syscall");
 
-    // write_asm_file(emitter);
+    write_asm_file(emitter);
     compile_asm_file();
     link_source();
     run_source();
@@ -170,6 +158,20 @@ fn compile_asm_file() {
         String::from_utf8_lossy(&compile_output.stdout),
         String::from_utf8_lossy(&compile_output.stderr)
     );
+
+    let compile_lib = Command::new("nasm")
+        .arg("-f")
+        .arg("elf64")
+        .arg("lib.asm")
+        .arg("-o")
+        .arg("lib.o")
+        .output()
+        .expect("Error assembling code.");
+    print!(
+        "{}{}",
+        String::from_utf8_lossy(&compile_lib.stdout),
+        String::from_utf8_lossy(&compile_lib.stderr)
+    );
 }
 
 fn link_source() {
@@ -177,6 +179,7 @@ fn link_source() {
         .arg("-m")
         .arg("elf_x86_64")
         .arg("a.o")
+        .arg("lib.o")
         .arg("-o")
         .arg("a.out")
         .output()

@@ -49,7 +49,7 @@ impl ParsedExpr {
         }
     }
 
-    fn evaluate_expr(expr: &ParsedExpr, var_table: &HashMap<String, ParsedExpr>) -> NumberContents {
+    pub fn evaluate_expr(expr: &ParsedExpr, var_table: &HashMap<String, ParsedExpr>) -> NumberContents {
         match expr {
             ParsedExpr::NumericConstant(n) => n.clone(),
             ParsedExpr::BinaryOp(n1, op, n2) => match op {

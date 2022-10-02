@@ -1,22 +1,7 @@
-.data:
-	message: db "Hello, World", 10
-
 .text:
-	global _start
-
-_start:
-	mov rsi, message
-	mov rdx, 13
-	call print_string
-
-	mov edi, 1337421
-	call print_int
-	mov rdi, 10 ; newline
-	call print_char
-
-	mov rax, 60 ; sys_exit
-	mov rdi, 0 ; return code
-	syscall
+	global print_char
+	global print_int
+	global print_string
 
 ; rdi - char c
 print_char:
