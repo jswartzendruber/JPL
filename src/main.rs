@@ -1,7 +1,6 @@
 use std::{env, fs, process};
 
-use lexer::NumberContents;
-use parser::{ParsedExpr, Parser};
+use parser::Parser;
 
 use crate::codegen::compile;
 
@@ -9,6 +8,7 @@ mod codegen;
 mod lexer;
 mod parser;
 
+#[derive(Debug)]
 pub struct JPLError {
     message: String,
 }
@@ -23,7 +23,7 @@ impl JPLError {
     }
 }
 
-fn main() {
+fn main() -> Result<(), JPLError> {
     let args: Vec<String> = env::args().skip(1).collect();
 
     if args.len() == 0 {
@@ -48,10 +48,8 @@ fn main() {
     };
 
     let mut parser = Parser::new(tokens);
-    match parser.parse() {
-        Ok(_) => {
-            compile(parser.statements);
-        }
-        Err(e) => e.print_error(),
-    }
+    parser.parse()?;
+    compile(parser.statements);
+
+    Ok(())
 }

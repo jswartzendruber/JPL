@@ -1,15 +1,10 @@
-use std::{collections::HashMap, fs::File, io::Write, process::Command};
+use std::{fs::File, io::Write, process::Command};
 
-use crate::{
-    lexer::NumberContents,
-    parser::{ParsedExpr, ParsedStatement, ParsedVarDecl},
-};
+use crate::parser::{BinaryOperator, ParsedExpr, ParsedStatement};
 
 struct Emitter {
     output_data: String,
     output_text: String,
-    var_table: HashMap<String, ParsedExpr>,
-    temporary_var_number: usize,
 }
 
 impl Emitter {
@@ -17,8 +12,6 @@ impl Emitter {
         let mut emitter = Self {
             output_data: String::from("SECTION .data\n"),
             output_text: String::from("SECTION .text\n"),
-            var_table: HashMap::new(),
-            temporary_var_number: 0,
         };
 
         emitter.emit_textln("extern print_int");
@@ -38,67 +31,40 @@ impl Emitter {
         self.output_text.push_str(&format!("\t{}\n", asm));
     }
 
-    fn emit_var_declaration(&mut self, var_name: ParsedVarDecl, expr: ParsedExpr) {
+    fn emit_expr(&mut self, expr: &ParsedExpr) {
         match expr {
-            ParsedExpr::NumericConstant(ref contents) => match contents {
-                NumberContents::Integer(i) => {
-                    self.emit_dataln(&format!("{} dd {}", var_name.name, i))
-                }
-                NumberContents::Floating(_) => todo!(),
-            },
-            ParsedExpr::BinaryOp(_, _, _) => {
-                let string_val = ParsedExpr::evaluate_expr_to_string(&expr, &self.var_table);
-                self.emit_dataln(&format!("{} db '{}', 0Ah", var_name.name, string_val));
+            ParsedExpr::IntegerConstant(i) => {
+                self.emit_textln(&format!("push {}", i));
             }
-            ParsedExpr::QuotedString(ref str) => {
-                self.emit_dataln(&format!("{} db '{}', 0Ah", var_name.name, str))
-            }
-            ParsedExpr::Var(_) => todo!(),
-        }
-        self.var_table.insert(var_name.name.to_string(), expr);
-    }
-
-    fn emit_print_expr(&mut self, expr: ParsedExpr) {
-        match expr {
-            ParsedExpr::NumericConstant(contents) => match contents {
-                NumberContents::Integer(i) => self.emit_i32_print(i),
-                NumberContents::Floating(_) => todo!(),
-            },
-            ParsedExpr::BinaryOp(_, _, _) => {
-                match ParsedExpr::evaluate_expr(&expr, &self.var_table) {
-                    NumberContents::Integer(i) => self.emit_i32_print(i),
-                    NumberContents::Floating(_) => todo!(),
-                }
-            }
-            ParsedExpr::QuotedString(str) => {
-                self.emit_dataln(&format!("temp{} db '{}'", self.temporary_var_number, str));
-
-                self.emit_textln(&format!("mov rdx, {}", str.len() + 1));
-                self.emit_textln(&format!("mov rsi, temp{}", self.temporary_var_number));
-                self.temporary_var_number += 1;
-
-                self.emit_textln("call print_string");
-                self.emit_textln("mov rdi, 10"); // newline
-                self.emit_textln("call print_char");
-            }
-            ParsedExpr::Var(var_name) => {
-                if let Some(var_value) = self.var_table.get(&var_name) {
-                    match var_value {
-                        ParsedExpr::NumericConstant(_) => todo!(),
-                        ParsedExpr::BinaryOp(_, _, _) => todo!(),
-                        ParsedExpr::QuotedString(_) => todo!(),
-                        ParsedExpr::Var(_) => todo!(),
+            ParsedExpr::FloatConstant(_) => todo!(),
+            ParsedExpr::BinaryOp(expr1, op, expr2) => {
+                self.emit_expr(&*expr1);
+                self.emit_expr(&*expr2);
+                match op {
+                    BinaryOperator::Add => {
+                        self.emit_textln("pop rax");
+                        self.emit_textln("pop rbx");
+                        self.emit_textln("add rax, rbx");
+                        self.emit_textln("push rax");
                     }
+                    BinaryOperator::Subtract => { // why is subtraction so hard
+                        self.emit_textln("pop rax");
+                        self.emit_textln("pop rbx");
+                        self.emit_textln("sub rbx, rax");
+                        self.emit_textln("push rbx");
+                    },
+                    BinaryOperator::Multiply => { // untested
+                        self.emit_textln("pop rax");
+                        self.emit_textln("pop rbx");
+                        self.emit_textln("imul rax, rbx");
+                        self.emit_textln("push rax");
+                    },
+                    BinaryOperator::Divide => todo!(),
                 }
             }
+            ParsedExpr::QuotedString(_) => todo!(),
+            ParsedExpr::Var(name) => self.emit_textln(&format!("push QWORD [{}]", name)),
         }
-    }
-
-    fn emit_i32_print(&mut self, i: i64) {
-        self.emit_textln(&format!("mov rdi, {}", i));
-        self.emit_textln("call print_int");
-        self.emit_textln("mov rdi, 10");
-        self.emit_textln("call print_char");
     }
 }
 
@@ -107,15 +73,33 @@ pub fn compile(statements: Vec<ParsedStatement>) {
 
     for statement in statements {
         match statement {
-            ParsedStatement::VarDecl(var_name, expr) => {
-                emitter.emit_var_declaration(var_name, expr);
-            }
-            ParsedStatement::Expression(_) => {}
-            ParsedStatement::FunctionCall(name, exprs) => {
-                if name.eq_ignore_ascii_case("print") {
-                    for expr in exprs {
-                        emitter.emit_print_expr(expr);
-                    }
+            ParsedStatement::VarDecl(decl, expr) => match expr {
+                ParsedExpr::IntegerConstant(i) => {
+                    emitter.emit_dataln(&format!("{} dq {}", decl.name, i))
+                }
+                ParsedExpr::FloatConstant(_) => todo!(),
+                ParsedExpr::BinaryOp(_, _, _) => {
+                    emitter.emit_dataln(&format!("{} dq 0", decl.name));
+                    emitter.emit_expr(&expr);
+                    emitter.emit_textln("pop rdi");
+                    emitter.emit_textln(&format!("mov [{}], rdi", decl.name));
+                }
+                ParsedExpr::QuotedString(_) => todo!(),
+                ParsedExpr::Var(_) => todo!(),
+            },
+            ParsedStatement::Expression(_) => todo!(),
+            ParsedStatement::FunctionCall(function, args) => {
+                if function == "print".to_string() {
+                    emitter.emit_expr(&args[0]);
+
+                    println!("expr: {:?}", args[0]);
+
+                    emitter.emit_textln("pop rdi");
+                    emitter.emit_textln("call print_int");
+                    emitter.emit_textln("mov rdi, 10"); // newline
+                    emitter.emit_textln("call print_char");
+                } else {
+                    todo!()
                 }
             }
         }

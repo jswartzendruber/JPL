@@ -1,3 +1,7 @@
-let b = 2
-let c = 3
-print(b * c)
+print(56+(723+48))
+let b = 1234+4321
+let a = 1111
+let c = 34
+let d = 300
+print(d+(b+(a+(c+(55-55)))))
+print((300-100)-100)

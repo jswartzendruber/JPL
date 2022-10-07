@@ -1,7 +1,5 @@
-use std::collections::HashMap;
-
 use crate::{
-    lexer::{NumberContents, Token, TokenContents},
+    lexer::{Token, TokenContents},
     JPLError,
 };
 
@@ -24,58 +22,16 @@ pub struct ParsedVarDecl {
     pub name: String,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum ParsedExpr {
-    NumericConstant(NumberContents),
+    IntegerConstant(i64),
+    FloatConstant(f64),
     BinaryOp(Box<ParsedExpr>, BinaryOperator, Box<ParsedExpr>),
     QuotedString(String),
     Var(String),
 }
 
-impl ParsedExpr {
-    pub fn evaluate_expr_to_string(
-        expr: &ParsedExpr,
-        var_table: &HashMap<String, ParsedExpr>,
-    ) -> String {
-        match expr {
-            ParsedExpr::BinaryOp(_, _, _) | ParsedExpr::NumericConstant(_) => {
-                match Self::evaluate_expr(expr, var_table) {
-                    NumberContents::Integer(i) => i.to_string(),
-                    NumberContents::Floating(f) => f.to_string(),
-                }
-            }
-            ParsedExpr::QuotedString(s) => s.to_string(),
-            ParsedExpr::Var(v) => v.to_string(),
-        }
-    }
-
-    pub fn evaluate_expr(expr: &ParsedExpr, var_table: &HashMap<String, ParsedExpr>) -> NumberContents {
-        match expr {
-            ParsedExpr::NumericConstant(n) => n.clone(),
-            ParsedExpr::BinaryOp(n1, op, n2) => match op {
-                BinaryOperator::Add => {
-                    Self::evaluate_expr(n1, var_table) + Self::evaluate_expr(n2, var_table)
-                }
-                BinaryOperator::Subtract => {
-                    Self::evaluate_expr(n1, var_table) - Self::evaluate_expr(n2, var_table)
-                }
-                BinaryOperator::Multiply => {
-                    Self::evaluate_expr(n1, var_table) * Self::evaluate_expr(n2, var_table)
-                }
-                BinaryOperator::Divide => {
-                    Self::evaluate_expr(n1, var_table) / Self::evaluate_expr(n2, var_table)
-                }
-            },
-            ParsedExpr::QuotedString(_) => todo!(),
-            ParsedExpr::Var(var_name) => Self::evaluate_expr(
-                var_table.get(var_name).expect("Could not find variable"),
-                var_table,
-            ),
-        }
-    }
-}
-
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum BinaryOperator {
     Add,
     Subtract,
@@ -182,15 +138,7 @@ impl Parser {
             _ => Err(JPLError::new(String::from("Expected equals sign."))),
         }?;
 
-        let expr = match &self.current().contents {
-            TokenContents::QuotedString(s) => {
-                let quoted_string = s.clone();
-                self.advance();
-                Ok(ParsedExpr::QuotedString(quoted_string))
-            }
-            TokenContents::Number(_) | TokenContents::LParen => Ok(self.expression()?),
-            _ => Err(JPLError::new(String::from("Expected literal value."))),
-        }?;
+        let expr = self.expression()?;
 
         self.statements.push(ParsedStatement::VarDecl(decl, expr));
 
@@ -206,7 +154,7 @@ impl Parser {
                     Ok(())
                 }
             }
-            TokenContents::Number(_) => {
+            TokenContents::Integer(_) | TokenContents::Float(_) => {
                 self.expression()?;
                 Ok(())
             }
@@ -272,10 +220,15 @@ impl Parser {
 
     fn factor(&mut self) -> Result<ParsedExpr, JPLError> {
         match &self.current().contents {
-            TokenContents::Number(n) => {
+            TokenContents::Integer(n) => {
                 let number = n.clone();
                 self.advance();
-                Ok(ParsedExpr::NumericConstant(number))
+                Ok(ParsedExpr::IntegerConstant(number))
+            }
+            TokenContents::Float(n) => {
+                let number = n.clone();
+                self.advance();
+                Ok(ParsedExpr::FloatConstant(number))
             }
             TokenContents::Name(n) => {
                 let name = n.clone();
