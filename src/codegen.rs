@@ -47,19 +47,25 @@ impl Emitter {
                         self.emit_textln("add rax, rbx");
                         self.emit_textln("push rax");
                     }
-                    BinaryOperator::Subtract => { // why is subtraction so hard
+                    BinaryOperator::Subtract => {
                         self.emit_textln("pop rax");
                         self.emit_textln("pop rbx");
                         self.emit_textln("sub rbx, rax");
                         self.emit_textln("push rbx");
                     },
-                    BinaryOperator::Multiply => { // untested
+                    BinaryOperator::Multiply => {
                         self.emit_textln("pop rax");
                         self.emit_textln("pop rbx");
                         self.emit_textln("imul rax, rbx");
                         self.emit_textln("push rax");
                     },
-                    BinaryOperator::Divide => todo!(),
+                    BinaryOperator::Divide => {
+                        self.emit_textln("pop rbx");
+                        self.emit_textln("pop rax");
+                        self.emit_textln("xor rdx, rdx");
+                        self.emit_textln("idiv rbx");
+                        self.emit_textln("push rax");
+                    },
                 }
             }
             ParsedExpr::QuotedString(_) => todo!(),

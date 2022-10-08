@@ -1,7 +1,8 @@
-print(56+(723+48))
+print(56+723+48)
 let b = 1234+4321
 let a = 1111
 let c = 34
 let d = 300
-print(d+(b+(a+(c+(55-55)))))
+print(d+b+a+c+55-65)
 print(300-100-200)
+print(12 * 3 * 4 / 4 / 2)
