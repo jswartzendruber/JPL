@@ -12,7 +12,6 @@ pub struct Parser {
 
 #[derive(Debug)]
 pub enum ParsedStatement {
-    Expression(ParsedExpr),
     VarDecl(ParsedVarDecl, ParsedExpr),
     FunctionCall(String, Vec<ParsedExpr>),
 }
@@ -79,7 +78,10 @@ impl Parser {
                 self.advance();
                 Ok(name)
             }
-            _ => Err(JPLError::new(String::from("Expected function name."))),
+            _ => Err(JPLError::new(
+                "Expected function name.".to_string(),
+                self.current().line,
+            )),
         }?;
 
         match &self.current().contents {
@@ -87,7 +89,10 @@ impl Parser {
                 self.advance();
                 Ok(())
             }
-            _ => Err(JPLError::new(String::from("Expected left parenthesis."))),
+            _ => Err(JPLError::new(
+                "Expected left parenthesis.".to_string(),
+                self.current().line,
+            )),
         }?;
 
         // TODO: handle more than one argument
@@ -103,7 +108,10 @@ impl Parser {
                     args.push(expr);
                     Ok(())
                 }
-                Err(_) => Err(JPLError::new(String::from("Expected expression."))),
+                Err(_) => Err(JPLError::new(
+                    "Expected expression.".to_string(),
+                    self.current().line,
+                )),
             },
         }?;
 
@@ -112,11 +120,14 @@ impl Parser {
                 self.advance();
                 Ok(())
             }
-            _ => Err(JPLError::new(String::from("Expected right parenthesis."))),
+            _ => Err(JPLError::new(
+                "Expected right parenthesis.".to_string(),
+                self.current().line,
+            )),
         }?;
 
         self.statements
-            .push(ParsedStatement::FunctionCall(name.to_string(), args));
+            .push(ParsedStatement::FunctionCall(name, args));
         Ok(())
     }
 
@@ -127,7 +138,10 @@ impl Parser {
                 self.advance();
                 Ok(ParsedVarDecl { name })
             }
-            _ => Err(JPLError::new(String::from("Expected variable name."))),
+            _ => Err(JPLError::new(
+                "Expected variable name.".to_string(),
+                self.current().line,
+            )),
         }?;
 
         match &self.current().contents {
@@ -135,7 +149,10 @@ impl Parser {
                 self.advance();
                 Ok(())
             }
-            _ => Err(JPLError::new(String::from("Expected equals sign."))),
+            _ => Err(JPLError::new(
+                "Expected equals sign.".to_string(),
+                self.current().line,
+            )),
         }?;
 
         let expr = self.expression()?;
@@ -158,97 +175,78 @@ impl Parser {
                 self.expression()?;
                 Ok(())
             }
-            _ => Err(JPLError::new(String::from("Expected variable or literal."))),
+            _ => Err(JPLError::new(
+                "Expected variable or literal.".to_string(),
+                self.current().line,
+            )),
         }
     }
 
     fn expression(&mut self) -> Result<ParsedExpr, JPLError> {
-        let lhs = self.term()?;
+        let mut lhs = self.term()?;
 
-        match self.current().contents {
-            TokenContents::Plus => {
-                self.advance();
-                let rhs = self.expression()?;
+        while let TokenContents::Plus | TokenContents::Minus = self.current().contents {
+            let op = match self.current().contents {
+                TokenContents::Plus => BinaryOperator::Add,
+                TokenContents::Minus => BinaryOperator::Subtract,
+                _ => unreachable!(),
+            };
+            let rhs = match self.current().contents {
+                TokenContents::Plus | TokenContents::Minus => {
+                    self.advance();
+                    self.term()?
+                }
+                _ => lhs.clone(),
+            };
 
-                Ok(ParsedExpr::BinaryOp(
-                    Box::new(lhs),
-                    BinaryOperator::Add,
-                    Box::new(rhs),
-                ))
-            }
-            TokenContents::Minus => {
-                self.advance();
-                let rhs = self.expression()?;
-
-                Ok(ParsedExpr::BinaryOp(
-                    Box::new(lhs),
-                    BinaryOperator::Subtract,
-                    Box::new(rhs),
-                ))
-            }
-            _ => Ok(lhs),
+            lhs = ParsedExpr::BinaryOp(Box::new(lhs), op, Box::new(rhs))
         }
+
+        Ok(lhs)
     }
 
     fn term(&mut self) -> Result<ParsedExpr, JPLError> {
-        let lhs = self.factor()?;
+        let mut lhs = self.factor()?;
 
-        match self.current().contents {
-            TokenContents::Star => {
-                self.advance();
-                let rhs = self.term()?;
+        while let TokenContents::Star | TokenContents::Slash = self.current().contents {
+            let op = match self.current().contents {
+                TokenContents::Star => BinaryOperator::Multiply,
+                TokenContents::Slash => BinaryOperator::Divide,
+                _ => unreachable!(),
+            };
+            let rhs = match self.current().contents {
+                TokenContents::Star | TokenContents::Slash => {
+                    self.advance();
+                    self.factor()?
+                }
+                _ => lhs.clone(),
+            };
 
-                Ok(ParsedExpr::BinaryOp(
-                    Box::new(lhs),
-                    BinaryOperator::Multiply,
-                    Box::new(rhs),
-                ))
-            }
-            TokenContents::Slash => {
-                self.advance();
-                let rhs = self.term()?;
-
-                Ok(ParsedExpr::BinaryOp(
-                    Box::new(lhs),
-                    BinaryOperator::Divide,
-                    Box::new(rhs),
-                ))
-            }
-            _ => Ok(lhs),
+            lhs = ParsedExpr::BinaryOp(Box::new(lhs), op, Box::new(rhs))
         }
+
+        Ok(lhs)
     }
 
     fn factor(&mut self) -> Result<ParsedExpr, JPLError> {
-        match &self.current().contents {
-            TokenContents::Integer(n) => {
-                let number = n.clone();
-                self.advance();
-                Ok(ParsedExpr::IntegerConstant(number))
-            }
-            TokenContents::Float(n) => {
-                let number = n.clone();
-                self.advance();
-                Ok(ParsedExpr::FloatConstant(number))
-            }
-            TokenContents::Name(n) => {
-                let name = n.clone();
-                self.advance();
-                Ok(ParsedExpr::Var(name))
-            }
+        match &self.advance().contents {
+            TokenContents::Integer(i) => Ok(ParsedExpr::IntegerConstant(*i)),
+            TokenContents::Float(f) => Ok(ParsedExpr::FloatConstant(*f)),
+            TokenContents::Name(s) => Ok(ParsedExpr::Var(s.to_string())),
             TokenContents::LParen => {
-                self.advance();
                 let expr = self.expression()?;
-                match self.current().contents {
-                    TokenContents::RParen => {
-                        self.advance();
-                        Ok(expr)
-                    }
-                    _ => Err(JPLError::new(String::from("Expected closing parenthesis."))),
+                match &self.advance().contents {
+                    TokenContents::RParen => Ok(expr),
+                    _ => Err(JPLError::new(
+                        "Expected closing parenthesis.".to_string(),
+                        self.current().line,
+                    )),
                 }
             }
-            _ => Err(JPLError::new(String::from(
-                "Expected parenthesis or number.",
-            ))),
+            _ => Err(JPLError::new(
+                "Expected parenthesis or number.".to_string(),
+                self.current().line,
+            )),
         }
     }
 

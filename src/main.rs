@@ -11,15 +11,19 @@ mod parser;
 #[derive(Debug)]
 pub struct JPLError {
     message: String,
+    line: usize,
 }
 
 impl JPLError {
-    fn new(message: String) -> Self {
-        Self { message }
+    fn new(message: String, line: usize) -> Self {
+        Self {
+            message,
+            line,
+        }
     }
 
     pub fn print_error(&self) {
-        println!("Error: {}", self.message);
+        eprintln!("Error on line {}: {}", self.line, self.message);
     }
 }
 
@@ -48,8 +52,14 @@ fn main() -> Result<(), JPLError> {
     };
 
     let mut parser = Parser::new(tokens);
-    parser.parse()?;
-    compile(parser.statements);
+    let statements = match parser.parse() {
+        Ok(_) => parser.statements,
+        Err(e) => {
+            e.print_error();
+            process::exit(2);
+        }
+    };
+    compile(statements);
 
     Ok(())
 }

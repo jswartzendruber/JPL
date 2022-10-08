@@ -3,7 +3,8 @@ use crate::JPLError;
 #[derive(Debug)]
 pub struct Token {
     pub contents: TokenContents,
-    span: Span,
+    pub span: Span,
+    pub line: usize,
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -41,8 +42,12 @@ impl Span {
 }
 
 impl Token {
-    pub fn new(contents: TokenContents, span: Span) -> Self {
-        Self { contents, span }
+    pub fn new(contents: TokenContents, span: Span, line: usize) -> Self {
+        Self {
+            contents,
+            span,
+            line,
+        }
     }
 }
 
@@ -59,10 +64,10 @@ pub fn lex(bytes: &[u8]) -> Result<Vec<Token>, JPLError> {
                 if bytes[index] == b'.' {
                     floating = true;
                 } else if bytes[index] == b'.' && floating {
-                    return Err(JPLError::new(format!(
-                        "Bad floating point number on line {}, found two decimal points",
-                        line
-                    )));
+                    return Err(JPLError::new(
+                        "Two decimal points in floating point number".to_string(),
+                        line,
+                    ));
                 }
                 index += 1;
             }
@@ -71,28 +76,30 @@ pub fn lex(bytes: &[u8]) -> Result<Vec<Token>, JPLError> {
                 let num = match String::from_utf8_lossy(&bytes[start..index]).parse() {
                     Ok(n) => n,
                     Err(_) => {
-                        return Err(JPLError::new(format!(
-                            "Bad floating point number on line {}",
-                            line
-                        )));
+                        return Err(JPLError::new(
+                            "Bad floating point number {}".to_string(),
+                            line,
+                        ));
                     }
                 };
 
                 tokens.push(Token::new(
                     TokenContents::Float(num),
                     Span::new(start, index - 1),
+                    line,
                 ))
             } else {
                 let num = match String::from_utf8_lossy(&bytes[start..index]).parse() {
                     Ok(n) => n,
                     Err(_) => {
-                        return Err(JPLError::new(format!("Bad integer on line {}", line)));
+                        return Err(JPLError::new("Bad integer".to_string(), line));
                     }
                 };
 
                 tokens.push(Token::new(
                     TokenContents::Integer(num),
                     Span::new(start, index - 1),
+                    line,
                 ))
             }
         } else if bytes[index].is_ascii_alphanumeric() {
@@ -104,6 +111,7 @@ pub fn lex(bytes: &[u8]) -> Result<Vec<Token>, JPLError> {
             tokens.push(Token::new(
                 TokenContents::Name(String::from(String::from_utf8_lossy(&bytes[start..index]))),
                 Span::new(start, index - 1),
+                line,
             ))
         } else if bytes[index] == b'"' {
             index += 1;
@@ -114,10 +122,7 @@ pub fn lex(bytes: &[u8]) -> Result<Vec<Token>, JPLError> {
             }
 
             if bytes[index] != b'"' {
-                return Err(JPLError::new(format!(
-                    "Unterminated string on line {}",
-                    line
-                )));
+                return Err(JPLError::new("Unterminated string".to_string(), line));
             }
 
             tokens.push(Token::new(
@@ -125,26 +130,51 @@ pub fn lex(bytes: &[u8]) -> Result<Vec<Token>, JPLError> {
                     &bytes[start..index],
                 ))),
                 Span::new(start, index - 1),
+                line,
             ));
 
             index += 1;
         } else if bytes[index] == b'+' {
-            tokens.push(Token::new(TokenContents::Plus, Span::new(index, index)));
+            tokens.push(Token::new(
+                TokenContents::Plus,
+                Span::new(index, index),
+                line,
+            ));
             index += 1;
         } else if bytes[index] == b'-' {
-            tokens.push(Token::new(TokenContents::Minus, Span::new(index, index)));
+            tokens.push(Token::new(
+                TokenContents::Minus,
+                Span::new(index, index),
+                line,
+            ));
             index += 1;
         } else if bytes[index] == b'*' {
-            tokens.push(Token::new(TokenContents::Star, Span::new(index, index)));
+            tokens.push(Token::new(
+                TokenContents::Star,
+                Span::new(index, index),
+                line,
+            ));
             index += 1;
         } else if bytes[index] == b'=' {
-            tokens.push(Token::new(TokenContents::Equal, Span::new(index, index)));
+            tokens.push(Token::new(
+                TokenContents::Equal,
+                Span::new(index, index),
+                line,
+            ));
             index += 1;
         } else if bytes[index] == b'(' {
-            tokens.push(Token::new(TokenContents::LParen, Span::new(index, index)));
+            tokens.push(Token::new(
+                TokenContents::LParen,
+                Span::new(index, index),
+                line,
+            ));
             index += 1;
         } else if bytes[index] == b')' {
-            tokens.push(Token::new(TokenContents::RParen, Span::new(index, index)));
+            tokens.push(Token::new(
+                TokenContents::RParen,
+                Span::new(index, index),
+                line,
+            ));
             index += 1;
         } else if bytes[index].is_ascii_whitespace() {
             if bytes[index] == b' ' || bytes[index] == b'\t' || bytes[index] == b'\r' {
@@ -165,18 +195,26 @@ pub fn lex(bytes: &[u8]) -> Result<Vec<Token>, JPLError> {
                     index += 1;
                 }
             } else {
-                tokens.push(Token::new(TokenContents::Slash, Span::new(index, index)));
+                tokens.push(Token::new(
+                    TokenContents::Slash,
+                    Span::new(index, index),
+                    line,
+                ));
                 index += 1;
             }
         } else {
-            return Err(JPLError::new(format!(
-                "unexpected token '{}' on line {}",
-                bytes[index] as char, line
-            )));
+            return Err(JPLError::new(
+                format!("unexpected token '{}'", bytes[index] as char),
+                line,
+            ));
         }
     }
 
-    tokens.push(Token::new(TokenContents::Eof, Span::new(index, index)));
+    tokens.push(Token::new(
+        TokenContents::Eof,
+        Span::new(index, index),
+        line,
+    ));
 
     Ok(tokens)
 }

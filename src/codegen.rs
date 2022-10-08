@@ -87,12 +87,9 @@ pub fn compile(statements: Vec<ParsedStatement>) {
                 ParsedExpr::QuotedString(_) => todo!(),
                 ParsedExpr::Var(_) => todo!(),
             },
-            ParsedStatement::Expression(_) => todo!(),
             ParsedStatement::FunctionCall(function, args) => {
                 if function == "print".to_string() {
                     emitter.emit_expr(&args[0]);
-
-                    println!("expr: {:?}", args[0]);
 
                     emitter.emit_textln("pop rdi");
                     emitter.emit_textln("call print_int");
