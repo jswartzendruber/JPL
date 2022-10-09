@@ -16,10 +16,7 @@ pub struct JPLError {
 
 impl JPLError {
     fn new(message: String, line: usize) -> Self {
-        Self {
-            message,
-            line,
-        }
+        Self { message, line }
     }
 
     pub fn print_error(&self) {
@@ -53,7 +50,7 @@ fn main() -> Result<(), JPLError> {
 
     let mut parser = Parser::new(tokens);
     let statements = match parser.parse() {
-        Ok(_) => parser.statements,
+        Ok(s) => s,
         Err(e) => {
             e.print_error();
             process::exit(2);

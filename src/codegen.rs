@@ -52,24 +52,25 @@ impl Emitter {
                         self.emit_textln("pop rbx");
                         self.emit_textln("sub rbx, rax");
                         self.emit_textln("push rbx");
-                    },
+                    }
                     BinaryOperator::Multiply => {
                         self.emit_textln("pop rax");
                         self.emit_textln("pop rbx");
                         self.emit_textln("imul rax, rbx");
                         self.emit_textln("push rax");
-                    },
+                    }
                     BinaryOperator::Divide => {
                         self.emit_textln("pop rbx");
                         self.emit_textln("pop rax");
                         self.emit_textln("xor rdx, rdx");
                         self.emit_textln("idiv rbx");
                         self.emit_textln("push rax");
-                    },
+                    }
                 }
             }
             ParsedExpr::QuotedString(_) => todo!(),
             ParsedExpr::Var(name) => self.emit_textln(&format!("push QWORD [{}]", name)),
+            ParsedExpr::FunctionCall(_, _) => todo!(),
         }
     }
 }
@@ -79,19 +80,20 @@ pub fn compile(statements: Vec<ParsedStatement>) {
 
     for statement in statements {
         match statement {
-            ParsedStatement::VarDecl(decl, expr) => match expr {
+            ParsedStatement::VarDecl(name, expr) => match expr {
                 ParsedExpr::IntegerConstant(i) => {
-                    emitter.emit_dataln(&format!("{} dq {}", decl.name, i))
+                    emitter.emit_dataln(&format!("{} dq {}", name, i))
                 }
                 ParsedExpr::FloatConstant(_) => todo!(),
                 ParsedExpr::BinaryOp(_, _, _) => {
-                    emitter.emit_dataln(&format!("{} dq 0", decl.name));
+                    emitter.emit_dataln(&format!("{} dq 0", name));
                     emitter.emit_expr(&expr);
                     emitter.emit_textln("pop rdi");
-                    emitter.emit_textln(&format!("mov [{}], rdi", decl.name));
+                    emitter.emit_textln(&format!("mov [{}], rdi", name));
                 }
                 ParsedExpr::QuotedString(_) => todo!(),
                 ParsedExpr::Var(_) => todo!(),
+                ParsedExpr::FunctionCall(_, _) => todo!(),
             },
             ParsedStatement::FunctionCall(function, args) => {
                 if function == "print".to_string() {
@@ -105,6 +107,8 @@ pub fn compile(statements: Vec<ParsedStatement>) {
                     todo!()
                 }
             }
+            ParsedStatement::ReturnStatement(_) => todo!(),
+            ParsedStatement::FunctionDeclaration(_, _, _) => todo!(),
         }
     }
 

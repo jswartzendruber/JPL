@@ -18,6 +18,8 @@ pub enum TokenContents {
 
     LParen,
     RParen,
+    LCurly,
+    RCurly,
 
     Integer(i64),
     Float(f64),
@@ -172,6 +174,20 @@ pub fn lex(bytes: &[u8]) -> Result<Vec<Token>, JPLError> {
         } else if bytes[index] == b')' {
             tokens.push(Token::new(
                 TokenContents::RParen,
+                Span::new(index, index),
+                line,
+            ));
+            index += 1;
+        } else if bytes[index] == b'{' {
+            tokens.push(Token::new(
+                TokenContents::LCurly,
+                Span::new(index, index),
+                line,
+            ));
+            index += 1;
+        } else if bytes[index] == b'}' {
+            tokens.push(Token::new(
+                TokenContents::RCurly,
                 Span::new(index, index),
                 line,
             ));
