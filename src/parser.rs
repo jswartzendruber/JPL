@@ -10,11 +10,28 @@ pub struct Parser {
 }
 
 #[derive(Debug)]
+pub struct Scope {
+    pub caller: String,
+}
+
+impl Scope {
+    pub fn new(caller: String) -> Self {
+        Self { caller }
+    }
+
+    pub fn empty() -> Self {
+        Self {
+            caller: String::from(""),
+        }
+    }
+}
+
+#[derive(Debug)]
 pub enum ParsedStatement {
     VarDecl(String, ParsedExpr),
-    FunctionCall(String, Vec<ParsedExpr>),
+    FunctionCall(String, Vec<ParsedExpr>, Scope),
     FunctionDeclaration(String, String, Vec<ParsedStatement>),
-    ReturnStatement(ParsedExpr),
+    ReturnStatement(ParsedExpr, Scope),
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -106,7 +123,7 @@ impl Parser {
 
         self.expect(TokenContents::RParen, "Expected right parenthesis.")?;
 
-        Ok(ParsedStatement::FunctionCall(name, args))
+        Ok(ParsedStatement::FunctionCall(name, args, Scope::empty()))
     }
 
     fn function_declaration(&mut self) -> Result<ParsedStatement, JPLError> {
@@ -138,7 +155,10 @@ impl Parser {
                     if n.eq_ignore_ascii_case("return") {
                         self.advance();
                         let expr = self.expression()?;
-                        function_body.push(ParsedStatement::ReturnStatement(expr));
+                        function_body.push(ParsedStatement::ReturnStatement(
+                            expr,
+                            Scope::new(function_name.clone()),
+                        ));
                     }
                 }
                 _ => function_body.push(self.statement()?),
@@ -216,7 +236,9 @@ impl Parser {
             }
             TokenContents::Name(s) => {
                 if self.peek().contents == TokenContents::LParen {
-                    if let ParsedStatement::FunctionCall(name, args) = self.function_call()? {
+                    if let ParsedStatement::FunctionCall(name, args, scope) =
+                        self.function_call()?
+                    {
                         Ok(ParsedExpr::FunctionCall(name, args))
                     } else {
                         Err(JPLError::new(
@@ -267,7 +289,6 @@ impl Parser {
     }
 
     fn advance(&mut self) -> &Token {
-        println!("eat {:?}", self.current());
         if !self.is_at_end() {
             self.idx += 1;
         }
